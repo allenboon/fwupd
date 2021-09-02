@@ -53,3 +53,5 @@ fu_history_add_security_attribute(FuHistory *self,
 				  const gchar *security_attr_json,
 				  const gchar *hsi_score,
 				  GError **error);
+gchar *
+fu_history_get_last_hsi(FuHistory *self);

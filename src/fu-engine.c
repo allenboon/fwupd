@@ -5910,6 +5910,7 @@ fu_engine_ensure_security_attrs(FuEngine *self)
 	g_autoptr(GPtrArray) items = NULL;
 	g_autoptr(GError) error = NULL;
 	g_autofree gchar *data = NULL;
+	gchar *last_hsi = NULL;
 
 	/* already valid */
 	if (self->host_security_id != NULL)
@@ -5954,6 +5955,20 @@ fu_engine_ensure_security_attrs(FuEngine *self)
 	/* distil into one simple string */
 	g_free(self->host_security_id);
 	self->host_security_id = fu_engine_attrs_calculate_hsi_for_chassis(self);
+
+	last_hsi = fu_history_get_last_hsi(self->history);
+	if(last_hsi != NULL)
+	{
+		g_warning("Engine-> %s", last_hsi);
+		/* compare HSI value */
+		switch(fu_history_hsi_better_or_worth(self->history))
+		{
+			case BETTER:
+				break;
+			case WORTH:
+				break;
+		}
+	}
 
 	/* Convert Security attribute to json string */
 	data = fu_security_attrs_to_json_string(self->host_security_attrs, &error);

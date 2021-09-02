@@ -1350,6 +1350,38 @@ fu_history_add_security_attribute(FuHistory *self,
 	return fu_history_stmt_exec(self, stmt, NULL, error);
 }
 
+gchar *
+fu_history_get_last_hsi(FuHistory *self)
+{
+	gint rc;
+	g_autofree gchar *ret_hsi = NULL;
+	g_autoptr(sqlite3_stmt) stmt = NULL;
+
+	rc = sqlite3_prepare_v2(self->db, "SELECT hsi_score FROM hsi_history LIMIT 1;", -1, &stmt, NULL);
+	if (rc != SQLITE_OK) {
+		g_debug("no schema version: %s", sqlite3_errmsg(self->db));
+		return NULL;
+	}
+	while(sqlite3_step(stmt) != SQLITE_DONE)
+	{
+		int i;
+		int num_cols = sqlite3_column_count(stmt);
+		for(i = 0; i < num_cols; i++)
+		{
+			switch (sqlite3_column_type(stmt, i))
+			{
+				case (SQLITE3_TEXT):
+					g_warning("------> %s, ", sqlite3_column_text(stmt, i));
+					ret_hsi = g_strdup(sqlite3_column_text(stmt, i));
+					return g_steal_pointer(&ret_hsi);
+			}
+		}
+		break; 
+	}
+	
+	return NULL;
+}
+
 static void
 fu_history_class_init(FuHistoryClass *klass)
 {
