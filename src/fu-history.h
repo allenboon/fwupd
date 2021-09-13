@@ -51,7 +51,7 @@ fu_history_get_blocked_firmware(FuHistory *self, GError **error);
 gboolean
 fu_history_add_security_attribute(FuHistory *self,
 				  const gchar *security_attr_json,
-				  const gchar *hsi_score,
+				  const guint hsi_score,
 				  GError **error);
-gchar *
-fu_history_get_last_hsi(FuHistory *self);
+gboolean
+fu_history_get_last_hsi_details(FuHistory *self, guint *ret_hsi, gchar **ret_json_attr);

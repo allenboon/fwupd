@@ -11,7 +11,7 @@
 #include <json-glib/json-glib.h>
 
 #include "fwupd-security-attr-private.h"
-
+#include "fwupd-enums-private.h"
 #include "fu-security-attrs-private.h"
 
 gchar *
@@ -301,17 +301,176 @@ fu_security_attrs_to_json(FuSecurityAttrs *attrs, JsonBuilder *builder)
 {
 	g_autoptr(GPtrArray) items = NULL;
 	g_autoptr(GError) error = NULL;
-
 	json_builder_begin_object(builder);
 	json_builder_set_member_name(builder, "SecurityAttributes");
-	json_builder_begin_array(builder);
+	json_builder_begin_object(builder);
 	items = fu_security_attrs_get_all(attrs);
 	for (guint i = 0; i < items->len; i++) {
 		FwupdSecurityAttr *attr = g_ptr_array_index(items, i);
+		json_builder_set_member_name(builder, fwupd_security_attr_get_appstream_id(attr));
 		json_builder_begin_object(builder);
 		fwupd_security_attr_to_json(attr, builder);
 		json_builder_end_object(builder);
+
 	}
-	json_builder_end_array(builder);
+	json_builder_end_object(builder);
 	json_builder_end_object(builder);
 }
+
+
+void
+fu_security_attrs_json_to_hashtable(GHashTable *last_security_hash, gchar *json_str, GError **error)
+{
+	/**
+	 *    
+   2   JsonParser *parser = json_parser_new ();
+   3   json_parser_load_from_data (parser, str, -1, NULL);
+   4 
+   5   JsonReader *reader = json_reader_new (json_parser_get_root (parser));
+   6 
+   7   json_reader_read_member (reader, "url");
+   8   const char *url = json_reader_get_string_value (reader);
+   9   json_reader_end_member (reader);
+  10 
+  11   json_reader_read_member (reader, "size");
+  12   json_reader_read_element (reader, 0);
+  13   int width = json_reader_get_int_value (reader);
+  14   json_reader_end_element (reader);
+  15   json_reader_read_element (reader, 1);
+  16   int height = json_reader_get_int_value (reader);
+  17   json_reader_end_element (reader);
+  18   json_reader_end_member (reader);
+  19 
+  20   g_object_unref (reader);
+  21   g_object_unref (parser);
+	 */
+
+	/**
+	 *  {
+        	"AppstreamId" : "org.fwupd.hsi.IntelDci.Enabled",
+        	"HsiLevel" : 1,
+        	"HsiResult" : "not-enabled",
+        	"Name" : "Intel DCI debugger",
+       		 "Plugin" : "msr",
+        	"Uri" : "https://fwupd.github.io/hsi.html#org.fwupd.hsi.IntelDci.Enabled",
+      		"Flags" : [
+        	"success"
+        	]
+      		},
+	 * 
+	 */
+
+
+	g_autoptr(JsonParser) parser = json_parser_new ();
+	GHashTable *tmp_hash = NULL;
+	JsonArray *security_attrs = NULL;
+	JsonArray *flags = NULL;
+	json_parser_load_from_data (parser, json_str, -1, NULL);
+
+	JsonNode *json_root = json_parser_get_root(parser);
+	JsonObject *json_obj = json_node_get_object(json_root);
+	security_attrs = json_object_get_array_member(json_obj, "SecurityAttributes");
+
+	g_warning("%s",json_str);
+	for (guint i = 0; i < json_array_get_length(security_attrs); i++) {
+		tmp_hash = g_hash_table_new(g_str_hash, g_str_equal);
+                JsonObject *related_item;
+		related_item = json_array_get_object_element(security_attrs, i);
+		const gchar *app_stream_id = json_object_get_string_member(related_item, "AppstreamId");
+		const gint hsi_level = json_object_get_int_member(related_item, "HsiLevel");
+		const gchar *hsi_result = json_object_get_string_member(related_item, "HsiResult");
+		const gchar *dev_name = json_object_get_string_member(related_item, "Name");
+		const gchar *related_plugin = json_object_get_string_member(related_item, "Plugin");
+		const gchar *uri = json_object_get_string_member(related_item, "Uri");
+		
+		g_hash_table_insert(tmp_hash, "hsi_level", &hsi_level);
+		g_hash_table_insert(tmp_hash, "hsi_result", hsi_result);
+		g_warning("%s / %d / %s / %s / %s / %s", app_stream_id, hsi_level, hsi_result, dev_name, related_plugin, uri);
+		
+		if (json_object_has_member(related_item, "Flags") == TRUE) {
+			flags = json_object_get_array_member(related_item, "Flags");
+			if (flags != NULL) {
+				for (guint x = 0; x < json_array_get_length(flags); x++) {
+					JsonNode *tmp_node = json_array_get_element(flags, x);
+					g_warning("Flags are %s", json_node_get_string(tmp_node));
+				}
+				
+			}
+		}
+		g_hash_table_insert(last_security_hash, app_stream_id, tmp_hash);
+        }
+	
+}
+
+gint
+fu_security_parse_hsi(const gchar *hsi)
+{
+	gint ret = 0;
+	g_autofree char *tmp_str;
+	gchar *tail = NULL;
+	tmp_str = g_strdup(hsi);
+	tmp_str = tmp_str + 4;
+	tail = g_strrstr(tmp_str, "!");
+	ret = g_ascii_strtoll(tmp_str, tail, 10); 
+	g_warning("HSI to int is %d", ret);
+	return ret;
+}
+
+gint
+fu_security_attrs_compare_hsi_score(const guint previous_hsi, const guint current_hsi)
+{
+	g_warning("Last HSI %d Current HSI %d", previous_hsi, current_hsi);
+
+	if (current_hsi > previous_hsi)
+		return 1;
+	else if (current_hsi < previous_hsi)
+		return -1;
+	else
+		return 0;
+}
+
+static gboolean
+fu_security_attr_deep_object_compare(FwupdSecurityAttr *attr, JsonObject *json_obj)
+{
+	/* 1. HSI comparison */
+	if(fwupd_security_attr_get_level(attr) == json_object_get_int_member(json_obj, FWUPD_RESULT_KEY_HSI_LEVEL)) {
+		g_warning("Same level");
+		return TRUE;
+	}
+	
+}
+
+
+void
+fu_security_attrs_diff_hsi_reason(FuSecurityAttrs *attrs, const gchar *last_hsi_detail)
+{
+	g_autoptr(GPtrArray) items = NULL;
+	
+	
+	g_autoptr(JsonParser) parser = json_parser_new ();;
+
+	json_parser_load_from_data (parser, last_hsi_detail, -1, NULL);
+	JsonNode *json_root = json_parser_get_root(parser);
+	JsonObject *json_obj = json_node_get_object(json_root);
+	JsonObject *previous_security_attrs = json_object_get_object_member(json_obj, "SecurityAttributes");
+
+
+	items = fu_security_attrs_get_all(attrs);
+	for (guint i = 0; i < items->len; i++) {
+		FwupdSecurityAttr *attr = g_ptr_array_index(items, i);
+		g_warning("%s", fwupd_security_attr_get_appstream_id(attr));
+		if(json_object_has_member(previous_security_attrs, fwupd_security_attr_get_appstream_id(attr)) == TRUE) {
+			/* Hit */
+			g_warning("Hit!");
+
+			/* Object comparison */
+			fu_security_attr_deep_object_compare(attr, json_object_get_object_member(previous_security_attrs, fwupd_security_attr_get_appstream_id(attr)));
+		
+		}else {
+			/* Miss- A new AppStreamID */
+
+		}
+	}
+
+}
+

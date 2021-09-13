@@ -5863,7 +5863,7 @@ fu_engine_ensure_security_attrs_tainted(FuEngine *self)
 }
 
 static gchar *
-fu_engine_attrs_calculate_hsi_for_chassis(FuEngine *self)
+fu_engine_attrs_calculate_hsi_for_chassis(FuEngine *self, guint *hsi_value)
 {
 	guint val;
 
@@ -5893,12 +5893,14 @@ fu_engine_attrs_calculate_hsi_for_chassis(FuEngine *self)
 	case FU_SMBIOS_CHASSIS_KIND_MINI_PC:
 	case FU_SMBIOS_CHASSIS_KIND_STICK_PC:
 		return fu_security_attrs_calculate_hsi(self->host_security_attrs,
-						       FU_SECURITY_ATTRS_FLAG_ADD_VERSION);
+						       FU_SECURITY_ATTRS_FLAG_ADD_VERSION, hsi_value);
 	default:
 		break;
 	}
 
 	/* failed */
+	if(hsi_value != NULL)
+		*hsi_value = -1;
 	return g_strdup_printf("HSI-INVALID:chassis[0x%02x]", val);
 }
 
@@ -5910,7 +5912,7 @@ fu_engine_ensure_security_attrs(FuEngine *self)
 	g_autoptr(GPtrArray) items = NULL;
 	g_autoptr(GError) error = NULL;
 	g_autofree gchar *data = NULL;
-	gchar *last_hsi = NULL;
+	guint hsi_value = 0;
 
 	/* already valid */
 	if (self->host_security_id != NULL)
@@ -5954,19 +5956,13 @@ fu_engine_ensure_security_attrs(FuEngine *self)
 
 	/* distil into one simple string */
 	g_free(self->host_security_id);
-	self->host_security_id = fu_engine_attrs_calculate_hsi_for_chassis(self);
-
-	last_hsi = fu_history_get_last_hsi(self->history);
-	if(last_hsi != NULL)
-	{
-		g_warning("Engine-> %s", last_hsi);
-		/* compare HSI value */
-		switch(fu_history_hsi_better_or_worth(self->history))
-		{
-			case BETTER:
-				break;
-			case WORTH:
-				break;
+	self->host_security_id = fu_engine_attrs_calculate_hsi_for_chassis(self, &hsi_value);
+	g_autofree gchar * last_hsi = NULL;
+	g_autofree gchar * last_json_attr = NULL;
+	
+	if(fu_history_get_last_hsi_details(self->history, &last_hsi, &last_json_attr) == TRUE) {
+		if(fu_security_attrs_compare_hsi_score(last_hsi, hsi_value) == 0) {
+			fu_security_attrs_diff_hsi_reason(self->host_security_attrs, last_json_attr);
 		}
 	}
 
@@ -5979,9 +5975,10 @@ fu_engine_ensure_security_attrs(FuEngine *self)
 	} else {
 		if (fu_history_add_security_attribute(self->history,
 						      data,
-						      self->host_security_id,
+						      hsi_value,
 						      &error) == FALSE)
 			g_warning("Fail to write security attribute to DB: %s", error->message);
+			
 	}
 }
 

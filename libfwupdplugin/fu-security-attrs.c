@@ -160,9 +160,16 @@ fu_security_attrs_remove_all(FuSecurityAttrs *self)
  * Returns: (transfer full): a string or %NULL
  *
  * Since: 1.5.0
+ * 
+ * Add a return guint poiter to retrieve the hsi value
+ * 
+ * If hsi_uint_ret is NULL, the guint type hsi will not be returned.
+ * 
+ * Since: 1.7.0
+ * 
  **/
 gchar *
-fu_security_attrs_calculate_hsi(FuSecurityAttrs *self, FuSecurityAttrsFlags flags)
+fu_security_attrs_calculate_hsi(FuSecurityAttrs *self, FuSecurityAttrsFlags flags, guint *hsi_guint_ret)
 {
 	guint hsi_number = 0;
 	FwupdSecurityAttrFlags attr_flags = FWUPD_SECURITY_ATTR_FLAG_NONE;
@@ -210,6 +217,10 @@ fu_security_attrs_calculate_hsi(FuSecurityAttrs *self, FuSecurityAttrsFlags flag
 		    fwupd_security_attr_has_flag(attr, FWUPD_SECURITY_ATTR_FLAG_SUCCESS))
 			continue;
 		attr_flags |= fwupd_security_attr_get_flags(attr);
+	}
+
+	if (hsi_guint_ret != NULL) {
+		*hsi_guint_ret = hsi_number;
 	}
 
 	g_string_append_printf(str, "%u", hsi_number);

@@ -186,7 +186,9 @@ fu_history_create_database(FuHistory *self, GError **error)
 			  "CREATE TABLE IF NOT EXISTS hsi_history ("
 			  "timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
 			  "hsi_details TEXT DEFAULT NULL,"
-			  "hsi_score TEXT DEFAULT NULL);"
+			  "hsi_score INTEGER DEFAULT 0,"
+			  "fwupd_version TEXT DEFAULT NULL,"
+			  "changes TEXT DEFAULT NULL);"
 			  "COMMIT;",
 			  NULL,
 			  NULL,
@@ -1317,7 +1319,7 @@ fu_history_add_blocked_firmware(FuHistory *self, const gchar *checksum, GError *
 gboolean
 fu_history_add_security_attribute(FuHistory *self,
 				  const gchar *security_attr_json,
-				  const gchar *hsi_score,
+				  const guint hsi_score,
 				  GError **error)
 {
 	gint rc;
@@ -1346,18 +1348,17 @@ fu_history_add_security_attribute(FuHistory *self,
 		return FALSE;
 	}
 	sqlite3_bind_text(stmt, 1, security_attr_json, -1, SQLITE_STATIC);
-	sqlite3_bind_text(stmt, 2, hsi_score, -1, SQLITE_STATIC);
+	sqlite3_bind_int(stmt, 2, hsi_score);
 	return fu_history_stmt_exec(self, stmt, NULL, error);
 }
 
-gchar *
-fu_history_get_last_hsi(FuHistory *self)
+gboolean
+fu_history_get_last_hsi_details(FuHistory *self, guint *ret_hsi, gchar **ret_json_attr)
 {
 	gint rc;
-	g_autofree gchar *ret_hsi = NULL;
 	g_autoptr(sqlite3_stmt) stmt = NULL;
 
-	rc = sqlite3_prepare_v2(self->db, "SELECT hsi_score FROM hsi_history LIMIT 1;", -1, &stmt, NULL);
+	rc = sqlite3_prepare_v2(self->db, "SELECT hsi_score,hsi_details FROM hsi_history ORDER BY timestamp DESC LIMIT 1;", -1, &stmt, NULL);
 	if (rc != SQLITE_OK) {
 		g_debug("no schema version: %s", sqlite3_errmsg(self->db));
 		return NULL;
@@ -1371,15 +1372,17 @@ fu_history_get_last_hsi(FuHistory *self)
 			switch (sqlite3_column_type(stmt, i))
 			{
 				case (SQLITE3_TEXT):
-					g_warning("------> %s, ", sqlite3_column_text(stmt, i));
-					ret_hsi = g_strdup(sqlite3_column_text(stmt, i));
-					return g_steal_pointer(&ret_hsi);
+					if(i == 1)
+						*ret_json_attr = g_strdup(sqlite3_column_text(stmt, i));
+				case (SQLITE_INTEGER):
+					if(i == 0)
+						*ret_hsi = sqlite3_column_int(stmt, i);
 			}
 		}
-		break; 
+		return TRUE; 
 	}
-	
-	return NULL;
+
+	return FALSE;
 }
 
 static void
