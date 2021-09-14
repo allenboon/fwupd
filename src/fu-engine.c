@@ -5978,6 +5978,7 @@ fu_engine_ensure_security_attrs(FuEngine *self)
 		if (fu_history_add_security_attribute(self->history,
 						      data,
 						      hsi_value,
+						      fwupd_version_string(),
 						      diff_result,
 						      &error) == FALSE)
 			g_warning("Fail to write security attribute to DB: %s", error->message);

@@ -52,6 +52,7 @@ gboolean
 fu_history_add_security_attribute(FuHistory *self,
 				  const gchar *security_attr_json,
 				  const guint hsi_score,
+				  const gchar *version,
 				  const gchar *diff_result,
 				  GError **error);
 gboolean

@@ -1320,6 +1320,7 @@ gboolean
 fu_history_add_security_attribute(FuHistory *self,
 				  const gchar *security_attr_json,
 				  const guint hsi_score,
+				  const gchar *version,
 				  const gchar *diff_result,
 				  GError **error)
 {
@@ -1334,12 +1335,13 @@ fu_history_add_security_attribute(FuHistory *self,
 	/* remove entries */
 	locker = g_rw_lock_writer_locker_new(&self->db_mutex);
 	g_return_val_if_fail(locker != NULL, FALSE);
-	rc = sqlite3_prepare_v2(self->db,
-				"INSERT INTO hsi_history (hsi_details, hsi_score, changes)"
-				"VALUES (?1, ?2, ?3)",
-				-1,
-				&stmt,
-				NULL);
+	rc = sqlite3_prepare_v2(
+	    self->db,
+	    "INSERT INTO hsi_history (hsi_details, hsi_score, changes, fwupd_version)"
+	    "VALUES (?1, ?2, ?3, ?4)",
+	    -1,
+	    &stmt,
+	    NULL);
 	if (rc != SQLITE_OK) {
 		g_set_error(error,
 			    FWUPD_ERROR,
@@ -1351,6 +1353,7 @@ fu_history_add_security_attribute(FuHistory *self,
 	sqlite3_bind_text(stmt, 1, security_attr_json, -1, SQLITE_STATIC);
 	sqlite3_bind_int(stmt, 2, hsi_score);
 	sqlite3_bind_text(stmt, 3, diff_result, -1, SQLITE_STATIC);
+	sqlite3_bind_text(stmt, 3, version, -1, SQLITE_STATIC);
 
 	return fu_history_stmt_exec(self, stmt, NULL, error);
 }
@@ -1361,28 +1364,30 @@ fu_history_get_last_hsi_details(FuHistory *self, guint *ret_hsi, gchar **ret_jso
 	gint rc;
 	g_autoptr(sqlite3_stmt) stmt = NULL;
 
-	rc = sqlite3_prepare_v2(self->db, "SELECT hsi_score,hsi_details FROM hsi_history ORDER BY timestamp DESC LIMIT 1;", -1, &stmt, NULL);
+	rc = sqlite3_prepare_v2(
+	    self->db,
+	    "SELECT hsi_score,hsi_details FROM hsi_history ORDER BY timestamp DESC LIMIT 1;",
+	    -1,
+	    &stmt,
+	    NULL);
 	if (rc != SQLITE_OK) {
 		g_debug("no schema version: %s", sqlite3_errmsg(self->db));
 		return NULL;
 	}
-	while(sqlite3_step(stmt) != SQLITE_DONE)
-	{
+	while (sqlite3_step(stmt) != SQLITE_DONE) {
 		int i;
 		int num_cols = sqlite3_column_count(stmt);
-		for(i = 0; i < num_cols; i++)
-		{
-			switch (sqlite3_column_type(stmt, i))
-			{
-				case (SQLITE3_TEXT):
-					if(i == 1)
-						*ret_json_attr = g_strdup(sqlite3_column_text(stmt, i));
-				case (SQLITE_INTEGER):
-					if(i == 0)
-						*ret_hsi = sqlite3_column_int(stmt, i);
+		for (i = 0; i < num_cols; i++) {
+			switch (sqlite3_column_type(stmt, i)) {
+			case (SQLITE3_TEXT):
+				if (i == 1)
+					*ret_json_attr = g_strdup(sqlite3_column_text(stmt, i));
+			case (SQLITE_INTEGER):
+				if (i == 0)
+					*ret_hsi = sqlite3_column_int(stmt, i);
 			}
 		}
-		return TRUE; 
+		return TRUE;
 	}
 
 	return FALSE;
