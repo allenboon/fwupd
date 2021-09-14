@@ -1320,6 +1320,7 @@ gboolean
 fu_history_add_security_attribute(FuHistory *self,
 				  const gchar *security_attr_json,
 				  const guint hsi_score,
+				  const gchar *diff_result,
 				  GError **error)
 {
 	gint rc;
@@ -1334,8 +1335,8 @@ fu_history_add_security_attribute(FuHistory *self,
 	locker = g_rw_lock_writer_locker_new(&self->db_mutex);
 	g_return_val_if_fail(locker != NULL, FALSE);
 	rc = sqlite3_prepare_v2(self->db,
-				"INSERT INTO hsi_history (hsi_details, hsi_score)"
-				"VALUES (?1, ?2)",
+				"INSERT INTO hsi_history (hsi_details, hsi_score, changes)"
+				"VALUES (?1, ?2, ?3)",
 				-1,
 				&stmt,
 				NULL);
@@ -1349,6 +1350,8 @@ fu_history_add_security_attribute(FuHistory *self,
 	}
 	sqlite3_bind_text(stmt, 1, security_attr_json, -1, SQLITE_STATIC);
 	sqlite3_bind_int(stmt, 2, hsi_score);
+	sqlite3_bind_text(stmt, 3, diff_result, -1, SQLITE_STATIC);
+
 	return fu_history_stmt_exec(self, stmt, NULL, error);
 }
 

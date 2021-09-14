@@ -19,5 +19,5 @@ void
 fu_security_attrs_to_json(FuSecurityAttrs *attrs, JsonBuilder *builder);
 gchar *
 fu_security_attrs_to_json_string(FuSecurityAttrs *attrs, GError **error);
-void
+gchar *
 fu_security_attrs_diff_hsi_reason(FuSecurityAttrs *attrs, const gchar *last_hsi_detail);

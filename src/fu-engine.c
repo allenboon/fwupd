@@ -5959,10 +5959,12 @@ fu_engine_ensure_security_attrs(FuEngine *self)
 	self->host_security_id = fu_engine_attrs_calculate_hsi_for_chassis(self, &hsi_value);
 	g_autofree gchar * last_hsi = NULL;
 	g_autofree gchar * last_json_attr = NULL;
+	g_autofree gchar * diff_result = NULL;
 	
 	if(fu_history_get_last_hsi_details(self->history, &last_hsi, &last_json_attr) == TRUE) {
 		if(fu_security_attrs_compare_hsi_score(last_hsi, hsi_value) == 0) {
-			fu_security_attrs_diff_hsi_reason(self->host_security_attrs, last_json_attr);
+			diff_result = fu_security_attrs_diff_hsi_reason(self->host_security_attrs, last_json_attr);
+			g_warning("%s", diff_result);
 		}
 	}
 
@@ -5976,6 +5978,7 @@ fu_engine_ensure_security_attrs(FuEngine *self)
 		if (fu_history_add_security_attribute(self->history,
 						      data,
 						      hsi_value,
+						      diff_result,
 						      &error) == FALSE)
 			g_warning("Fail to write security attribute to DB: %s", error->message);
 			
