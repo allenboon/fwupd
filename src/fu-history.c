@@ -20,7 +20,7 @@
 #include "fu-history.h"
 #include "fu-mutex.h"
 
-#define FU_HISTORY_CURRENT_SCHEMA_VERSION 7
+#define FU_HISTORY_CURRENT_SCHEMA_VERSION 8
 
 static void
 fu_history_finalize(GObject *object);
@@ -336,6 +336,52 @@ fu_history_migrate_database_v6(FuHistory *self, GError **error)
 	return TRUE;
 }
 
+static gboolean
+fu_history_migrate_database_v7(FuHistory *self, GError **error)
+{
+	gint rc;
+	/* rename table */
+	rc = sqlite3_exec(self->db,
+			  "ALTER TABLE hsi_history RENAME TO hsi_history_tmp",
+			  NULL,
+			  NULL,
+			  NULL);
+	/* Migrate data */
+	
+	rc = sqlite3_exec(self->db,
+			  "CREATE TABLE IF NOT EXISTS hsi_history ("
+			  "timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
+			  "hsi_details TEXT DEFAULT NULL,"
+			  "hsi_score INTEGER DEFAULT 0,"
+			  "fwupd_version TEXT DEFAULT NULL,"
+			  "changes TEXT DEFAULT NULL);",
+			  NULL,
+			  NULL,
+			  NULL);
+	rc = sqlite3_exec(self->db,
+			  "INSERT INTO hsi_history (timestamp, hsi_details)"
+			  "SELECT timestamp,hsi_details FROM hsi_history_tmp;",
+			  NULL,
+			  NULL,
+			  NULL);
+
+	rc = sqlite3_exec(self->db,
+			  "DROP TABLE hsi_history_tmp;",
+			  NULL,
+			  NULL,
+			  NULL);
+
+	if (rc != SQLITE_OK) {
+		g_set_error(error,
+			    FWUPD_ERROR,
+			    FWUPD_ERROR_INTERNAL,
+			    "Failed to create table: %s",
+			    sqlite3_errmsg(self->db));
+		return FALSE;
+	}
+	return TRUE;
+}
+
 /* returns 0 if database is not initialized */
 static guint
 fu_history_get_schema_version(FuHistory *self)
@@ -395,6 +441,11 @@ fu_history_create_or_migrate(FuHistory *self, guint schema_ver, GError **error)
 	/* fall through */
 	case 6:
 		if (!fu_history_migrate_database_v6(self, error))
+			return FALSE;
+		break;
+	/* fall through */
+	case 7:
+		if (!fu_history_migrate_database_v7(self, error))
 			return FALSE;
 		break;
 	default:
@@ -1371,8 +1422,8 @@ fu_history_get_last_hsi_details(FuHistory *self, guint *ret_hsi, gchar **ret_jso
 	    &stmt,
 	    NULL);
 	if (rc != SQLITE_OK) {
-		g_debug("no schema version: %s", sqlite3_errmsg(self->db));
-		return NULL;
+		g_debug("Error on fetching HSI history: %s", sqlite3_errmsg(self->db));
+		return FALSE;
 	}
 	while (sqlite3_step(stmt) != SQLITE_DONE) {
 		int i;
@@ -1380,11 +1431,19 @@ fu_history_get_last_hsi_details(FuHistory *self, guint *ret_hsi, gchar **ret_jso
 		for (i = 0; i < num_cols; i++) {
 			switch (sqlite3_column_type(stmt, i)) {
 			case (SQLITE3_TEXT):
-				if (i == 1)
-					*ret_json_attr = g_strdup(sqlite3_column_text(stmt, i));
+				if (i == 1) {
+					GString *tmp_str = g_string_new(NULL);
+					g_string_append_printf(tmp_str, "%s", sqlite3_column_text(stmt, i));
+					*ret_json_attr = g_string_free(tmp_str, FALSE);
+				}
+				break;
 			case (SQLITE_INTEGER):
 				if (i == 0)
 					*ret_hsi = sqlite3_column_int(stmt, i);
+				break;
+			default:
+				g_warning("Mismatch HSI history column format");
+				return FALSE;
 			}
 		}
 		return TRUE;

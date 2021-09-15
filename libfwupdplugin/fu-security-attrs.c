@@ -156,16 +156,12 @@ fu_security_attrs_remove_all(FuSecurityAttrs *self)
  * @flags: HSI attribute flags
  *
  * Calculates the HSI string from the appended attributes.
+ * 
+ * If hsi_uint_ret is NULL, the guint type hsi will not be returned.
  *
  * Returns: (transfer full): a string or %NULL
  *
  * Since: 1.5.0
- * 
- * Add a return guint poiter to retrieve the hsi value
- * 
- * If hsi_uint_ret is NULL, the guint type hsi will not be returned.
- * 
- * Since: 1.7.0
  * 
  **/
 gchar *

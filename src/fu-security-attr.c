@@ -317,25 +317,9 @@ fu_security_attrs_to_json(FuSecurityAttrs *attrs, JsonBuilder *builder)
 	json_builder_end_object(builder);
 }
 
-gint
-fu_security_parse_hsi(const gchar *hsi)
-{
-	gint ret = 0;
-	g_autofree char *tmp_str;
-	gchar *tail = NULL;
-	tmp_str = g_strdup(hsi);
-	tmp_str = tmp_str + 4;
-	tail = g_strrstr(tmp_str, "!");
-	ret = g_ascii_strtoll(tmp_str, tail, 10);
-	g_warning("HSI to int is %d", ret);
-	return ret;
-}
-
-gint
+guint
 fu_security_attrs_compare_hsi_score(const guint previous_hsi, const guint current_hsi)
 {
-	g_warning("Last HSI %d Current HSI %d", previous_hsi, current_hsi);
-
 	if (current_hsi > previous_hsi)
 		return 1;
 	else if (current_hsi < previous_hsi)
@@ -350,7 +334,6 @@ fu_sucurity_attr_dup_json_array_to_builder(JsonBuilder *builder,
 					   const gchar *item_name)
 {
 	JsonNode *json_node;
-	const gchar *flag_str;
 	if (src != NULL) {
 		json_builder_set_member_name(builder, item_name);
 		json_builder_begin_array(builder);
@@ -362,6 +345,42 @@ fu_sucurity_attr_dup_json_array_to_builder(JsonBuilder *builder,
 	}
 }
 
+/**
+ * fu_security_attr_deep_object_compare:
+ * 
+ * Detect HSI changes and put the results into a JSON builder.
+ * 
+ * @current_attr: a pointer for a current FuSecurityAttrs data structure.
+ * @previous_json_obj: a JSON object of previous security detail.
+ * @result_builder: A JSON builder.
+ *
+ * The format of the results are shown as follows.
+ * {
+ *	"$appstreamID1": {
+ *		"previous": {
+ *			"AppstreamID": ...
+ *			...
+ *		},
+ *		"current": {
+ *			"AppstreamID": ...
+ *			...
+ *		}
+ *	},
+ *	"$appstreamID2" {
+ *		"previous": {
+ *		...
+ *		},
+ *		"current": {
+ *		...
+ *		}
+ *	}
+ * }
+ *
+ * Returns: TRUE on success and FALSE on error.
+ *
+ * Since: 1.7.0
+ *
+ */
 static gboolean
 fu_security_attr_deep_object_compare(FwupdSecurityAttr *current_attr,
 				     JsonObject *previous_json_obj,
@@ -370,34 +389,9 @@ fu_security_attr_deep_object_compare(FwupdSecurityAttr *current_attr,
 	JsonArray *array_items = NULL;
 	/* 1. HSI comparison */
 	if (fwupd_security_attr_get_level(current_attr) ==
-	    json_object_get_int_member(previous_json_obj, FWUPD_RESULT_KEY_HSI_LEVEL)) {
-		g_warning("Same level");
-		//	return TRUE;
-	}
+	    json_object_get_int_member(previous_json_obj, FWUPD_RESULT_KEY_HSI_LEVEL))
+			return TRUE;
 	/* Level changed, find the diffrence*/
-
-	/* return format should be
-	  {
-		"$appstreamID1": {
-		  "previous": {
-			  "AppstreamID": ....
-			  ...
-		  },
-		  "current": {
-			  "AppstreamID": ...
-			  ...
-		  }
-		},
-		"$appstreamID2" {
-			"previous": {
-
-			},
-			"current": {
-
-			}
-		}
-	  }
-	*/
 	if (previous_json_obj != NULL) {
 		json_builder_set_member_name(
 		    result_builder,
@@ -488,8 +482,6 @@ fu_security_attrs_diff_hsi_reason(FuSecurityAttrs *attrs, const gchar *last_hsi_
 		if (json_object_has_member(previous_security_attrs,
 					   fwupd_security_attr_get_appstream_id(attr)) == TRUE) {
 			/* Hit */
-			/* Object comparison */
-			g_warning("Hit");
 			fu_security_attr_deep_object_compare(
 			    attr,
 			    json_object_get_object_member(
@@ -508,6 +500,5 @@ fu_security_attrs_diff_hsi_reason(FuSecurityAttrs *attrs, const gchar *last_hsi_
 	json_generator_set_pretty(json_generator, TRUE);
 	json_generator_set_root(json_generator, result_json_root);
 	data = json_generator_to_data(json_generator, NULL);
-	g_warning("%s", data);
 	return g_steal_pointer(&data);
 }
