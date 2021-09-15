@@ -344,16 +344,35 @@ fu_security_attrs_compare_hsi_score(const guint previous_hsi, const guint curren
 		return 0;
 }
 
+static void
+fu_sucurity_attr_dup_json_array_to_builder(JsonBuilder *builder,
+					   JsonArray *src,
+					   const gchar *item_name)
+{
+	JsonNode *json_node;
+	const gchar *flag_str;
+	if (src != NULL) {
+		json_builder_set_member_name(builder, item_name);
+		json_builder_begin_array(builder);
+		for (guint i = 0; i < json_array_get_length(src); i++) {
+			json_node = json_array_dup_element(src, i);
+			json_builder_add_value(builder, json_node);
+		}
+		json_builder_end_array(builder);
+	}
+}
+
 static gboolean
 fu_security_attr_deep_object_compare(FwupdSecurityAttr *current_attr,
 				     JsonObject *previous_json_obj,
 				     JsonBuilder *result_builder)
 {
+	JsonArray *array_items = NULL;
 	/* 1. HSI comparison */
 	if (fwupd_security_attr_get_level(current_attr) ==
 	    json_object_get_int_member(previous_json_obj, FWUPD_RESULT_KEY_HSI_LEVEL)) {
 		g_warning("Same level");
-		return TRUE;
+		//	return TRUE;
 	}
 	/* Level changed, find the diffrence*/
 
@@ -380,9 +399,10 @@ fu_security_attr_deep_object_compare(FwupdSecurityAttr *current_attr,
 	  }
 	*/
 	if (previous_json_obj != NULL) {
-		json_builder_set_member_name(result_builder,
-				     json_object_get_string_member(previous_json_obj,
-				     FWUPD_RESULT_KEY_APPSTREAM_ID));
+		json_builder_set_member_name(
+		    result_builder,
+		    json_object_get_string_member(previous_json_obj,
+						  FWUPD_RESULT_KEY_APPSTREAM_ID));
 		json_builder_begin_object(result_builder);
 		json_builder_set_member_name(result_builder, "previous");
 		json_builder_begin_object(result_builder);
@@ -411,10 +431,26 @@ fu_security_attr_deep_object_compare(FwupdSecurityAttr *current_attr,
 		json_builder_add_string_value(
 		    result_builder,
 		    json_object_get_string_member(previous_json_obj, FWUPD_RESULT_KEY_URI));
+
+		if (json_object_has_member(previous_json_obj, FWUPD_RESULT_KEY_FLAGS) == TRUE) {
+			array_items =
+			    json_object_get_array_member(previous_json_obj, FWUPD_RESULT_KEY_FLAGS);
+			fu_sucurity_attr_dup_json_array_to_builder(result_builder,
+								   array_items,
+								   FWUPD_RESULT_KEY_FLAGS);
+		}
+
+		if (json_object_has_member(previous_json_obj, FWUPD_RESULT_KEY_GUID) == TRUE) {
+			array_items =
+			    json_object_get_array_member(previous_json_obj, FWUPD_RESULT_KEY_GUID);
+			fu_sucurity_attr_dup_json_array_to_builder(result_builder,
+								   array_items,
+								   FWUPD_RESULT_KEY_GUID);
+		}
 		json_builder_end_object(result_builder);
-	}else {
+	} else {
 		json_builder_set_member_name(result_builder,
-				     fwupd_security_attr_get_appstream_id(current_attr));
+					     fwupd_security_attr_get_appstream_id(current_attr));
 		json_builder_begin_object(result_builder);
 	}
 
