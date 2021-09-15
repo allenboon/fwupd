@@ -63,6 +63,26 @@ GType = FuPxiBleDevice
 Plugin = pixart_rf
 GType = FuPxiBleDevice
 
+# TK-CB02BPBK
+[HIDRAW\VEN_056E&DEV_1095]
+Plugin = pixart_rf
+GType = FuPxiBleDevice
+
+# AMB844
+[HIDRAW\VEN_4168&DEV_1013]
+Plugin = pixart_rf
+GType = FuPxiBleDevice
+
+# AKR123 
+[HIDRAW\VEN_04F2&DEV_2199]
+Plugin = pixart_rf
+GType = FuPxiBleDevice
+
+# AKR120 
+[HIDRAW\VEN_04F2&DEV_2198]
+Plugin = pixart_rf
+GType = FuPxiBleDevice
+
 # Primax Black Mocha KB
 [HIDRAW\VEN_0461&DEV_4EFA]
 Plugin = pixart_rf
